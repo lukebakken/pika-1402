@@ -35,3 +35,5 @@ But once the CtrlC is sent to generate the SIGINT, event if the program wait for
 __==> is there a way to force the channel/connection to process the waiting add_callback_threadsafe before closing the connection ?__
 
 ![schema of the issue](Issue_schema.png)
+
+(note : in the code, you need to change the connection info to RabbitMQ like host, port, login, password line 107 to 111)
