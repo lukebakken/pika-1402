@@ -37,3 +37,9 @@ __==> is there a way to force the channel/connection to process the waiting add_
 ![schema of the issue](Issue_schema.png)
 
 (note : in the code, you need to change the connection info to RabbitMQ like host, port, login, password line 107 to 111)
+
+Versions :
+
+- Python 3.7.13
+- pika 1.3.1
+- RabbitMQ 3.6.10
