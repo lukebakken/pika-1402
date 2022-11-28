@@ -33,3 +33,5 @@ In parallele the code is catching SIGINT signals to stop the program properly, b
 But once the CtrlC is sent to generate the SIGINT, event if the program wait for all threads to finish, the acknowledgement will not be processed.
 
 __==> is there a way to force the channel/connection to process the waiting add_callback_threadsafe before closing the connection ?__
+
+![schema of the issue](Issue_schema.png)
