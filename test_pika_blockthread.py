@@ -1,20 +1,30 @@
 import datetime
 import functools
 import logging
+import logging.handlers
 import pika
 import pika.credentials
 import pika.spec
 import signal
 import threading
 import time
-import traceback
+import sys
 
 from queue import Queue
 
 log_format = ('%(levelname) -10s %(asctime)s %(name) -30s %(funcName) -35s %(lineno) -5d: %(message)s')
-logger = logging.getLogger(__name__)
+log_formatter = logging.Formatter(log_format)
 
-logging.basicConfig(level=logging.INFO, format=log_format)
+logger = logging.getLogger()
+logger.setLevel(logging.DEBUG)
+
+file_handler = logging.handlers.WatchedFileHandler(filename='pika-1402.log')
+file_handler.setFormatter(log_formatter)
+logger.addHandler(file_handler)
+
+stdout_handler = logging.StreamHandler(sys.stdout)
+stdout_handler.setFormatter(log_formatter)
+logger.addHandler(stdout_handler)
 
 # %% PARAMETERS
 RabbitMQ_host = 'localhost'
@@ -43,7 +53,9 @@ def ack_message(ch, delivery_tag):
     else:
         # Channel is already closed, so we can't ACK this message;
         # log and/or do something that makes sense for your app in this case.
-        logger.error(datetime.datetime.now(),str(datetime.timedelta(seconds=time.time() - init_time)),f'ERROR Channel Closed when trying to Acknowledge')
+        now_str = str(datetime.datetime.now())
+        delta_str = str(datetime.timedelta(seconds=time.time() - init_time))
+        logger.error('Channel Closed when trying to Acknowledge, now %s delta %s', now_str, delta_str)
         pass
 
 # %% Function Process multiple messages in separate thread 
@@ -69,6 +81,7 @@ def block_process():
 
     # do something that take time with the block of nessage in body_list
     time.sleep(10)
+
     for body in body_list:
         body_str = body.decode()
         logger.info(f'DEBUG block_process : message processed is {body_str}')
@@ -115,8 +128,8 @@ def process_message(ch, method, _properties, body):
         threads.append(t)
         #print(f'DEBUG thread count after add {len(threads)}')
     elif list_Boby_Tag.qsize() > 0 :
-        # if the queue is not full create a thread with a timer to do the process after sometime, here 10 seconds for test purpose
-        event = threading.Timer(interval=10, function=block_process)
+        # if the queue is not full create a thread with a timer to do the process after sometime, here 5 seconds for test purpose
+        event = threading.Timer(interval=5, function=block_process)
         event.start()
         # also add this thread to the list of threads
         threads.append(event)
@@ -152,14 +165,18 @@ logger.info(f'DEBUG main : test messages created in {RabbitMQ_queue}')
 
 # %% Function clean stop of pika connection in case of interruption or exception
 def cleanClose():
-    channel.stop_consuming()
+    logger.info(f'DEBUG : cleanClose start')
     # tell the on_message_callback to do nothing 
     PauseConsume = True
+    channel.stop_consuming()
     # Wait for all threads to complete
     for thread in threads:
         thread.join()
     # stop pika connection after a short pause
-    connection.sleep(3)
+    logger.info(f'DEBUG : cleanClose sleeping 10 seconds')
+    connection.sleep(10)
+    logger.info(f'DEBUG : cleanClose closing connections and channels')
+    channel.close()
     connection.close()
     return
 
