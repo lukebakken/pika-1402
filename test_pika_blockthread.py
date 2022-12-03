@@ -1,32 +1,35 @@
-# %% import packages
-# connect to Rabbit MQ
-import pika
-# intercept stop signal
-import signal
-# print exception
-import traceback
-# threading
-import functools
-import threading
-from queue import Queue
-# logs time
 import datetime
+import functools
+import logging
+import pika
+import pika.credentials
+import pika.spec
+import signal
+import threading
 import time
+import traceback
+
+from queue import Queue
+
+log_format = ('%(levelname) -10s %(asctime)s %(name) -30s %(funcName) -35s %(lineno) -5d: %(message)s')
+logger = logging.getLogger(__name__)
+
+logging.basicConfig(level=logging.INFO, format=log_format)
 
 # %% Function Message Acknowledgement
 def ack_message(ch, delivery_tag):
     """Note that `ch` must be the same pika channel instance via which
     the message being ACKed was retrieved (AMQP protocol constraint).
     """
-    print(f'DEBUG ack_message : begining of ack_message function')
+    logger.info(f'DEBUG ack_message : begining of ack_message function')
 
     if ch.is_open:
         ch.basic_ack(delivery_tag)
-        print(f'DEBUG ack_message : Acknowledgement delivered')
+        logger.info(f'DEBUG ack_message : Acknowledgement delivered')
     else:
         # Channel is already closed, so we can't ACK this message;
         # log and/or do something that makes sense for your app in this case.
-        print(datetime.datetime.now(),str(datetime.timedelta(seconds=time.time() - init_time)),f'ERROR Channel Closed when trying to Acknowledge')
+        logger.error(datetime.datetime.now(),str(datetime.timedelta(seconds=time.time() - init_time)),f'ERROR Channel Closed when trying to Acknowledge')
         pass
 
 # %% Function Process multiple messages in separate thread 
@@ -40,11 +43,11 @@ def block_process():
     print(f'DEBUG block_process : start of block_process function')
 
     # cancel the timer if exist, as we will proces all elements in the queue here
-    if event and event.isAlive():
+    if event and event.is_alive():
         event.cancel()
 
     # extract all queued messages fom internal python queue and rebuild individual listes body and tag from tupple
-    for i in range(list_Boby_Tag.qsize()):
+    for _ in range(list_Boby_Tag.qsize()):
         myTuppleBodyTag = list_Boby_Tag.get()
         body_list += [myTuppleBodyTag[0]]
         tag_list += [myTuppleBodyTag[1]]
@@ -54,15 +57,15 @@ def block_process():
     time.sleep(10)
     for body in body_list:
         body_str = body.decode()
-        print(f'DEBUG block_process : message processed is {body_str}')
+        logger.info(f'DEBUG block_process : message processed is {body_str}')
 
     # acknowledging all tags in tag_list by using the channel thread safe function .connection.add_callback_threadsafe
     for tag in tag_list:
-        print(f'DEBUG preprare delivering Acknowledgement from thread')
+        logger.info(f'DEBUG preprare delivering Acknowledgement from thread')
         cb = functools.partial(ack_message, channel, tag)
         channel.connection.add_callback_threadsafe(cb)
 
-    print(f'DEBUG block_process : end of block_process function')
+    logger.info(f'DEBUG block_process : end of block_process function')
 
     return
 
@@ -78,7 +81,7 @@ def process_message(ch, method, properties, body):
         return
     
     # cancel the timer if exist as we are going to process a block or restart a new timer
-    if event and event.isAlive():
+    if event and event.is_alive():
         event.cancel()
 
     # put in the queue the data from the body and tag as tupple
@@ -104,11 +107,11 @@ def process_message(ch, method, properties, body):
         threads.append(event)
 
 # %% PARAMETERS
-RabbitMQ_host = '192.168.1.190'
+RabbitMQ_host = 'localhost'
 RabbitMQ_port = 5672
 RabbitMQ_queue = 'test_ctrlC'
-RabbitMQ_cred_un = 'xxx'
-RabbitMQ_cred_pd = 'xxx'
+RabbitMQ_cred_un = 'guest'
+RabbitMQ_cred_pd = 'guest'
 
 # %% init variables for batch process
 list_Boby_Tag = Queue()
@@ -133,7 +136,7 @@ channel.basic_consume(queue=RabbitMQ_queue,
 # %% empty queue and generate test data
 channel.queue_purge(queue=RabbitMQ_queue)
 # wait few second so the purge can be check in the RabbitMQ ui
-print(f'DEBUG main : queue {RabbitMQ_queue} purged')
+logger.info(f'DEBUG main : queue {RabbitMQ_queue} purged')
 connection.sleep(10)
 # generate 10 test messages
 for msgId in range(10):
@@ -143,7 +146,7 @@ for msgId in range(10):
                         properties=pika.BasicProperties(
                             delivery_mode = pika.spec.PERSISTENT_DELIVERY_MODE
                         ))
-print(f'DEBUG main : test messages created in {RabbitMQ_queue}')
+logger.info(f'DEBUG main : test messages created in {RabbitMQ_queue}')
 
 # %% Function clean stop of pika connection in case of interruption or exception
 def cleanClose():
@@ -159,8 +162,10 @@ def cleanClose():
     return
 
 # %% Function handle exit signals
-def exit_handler(signum, frame):
-    print(datetime.datetime.now(),str(datetime.timedelta(seconds=time.time() - init_time)),f'Exit signal received ({signum})')
+def exit_handler(signum, _frame):
+    now_str = str(datetime.datetime.now())
+    delta_str = str(datetime.timedelta(seconds=time.time() - init_time))
+    logger.info('Exit signal received (%d) at %s, delta %s', signum, now_str, delta_str)
     cleanClose()
     exit(0)
 
@@ -171,7 +176,7 @@ print(' [*] Waiting for messages. To exit press CTRL+C')
 try:
     channel.start_consuming()
 except Exception:
-    print(datetime.datetime.now(),str(datetime.timedelta(seconds=time.time() - init_time)),f'Exception received within start_consumming')
+    logger.error(datetime.datetime.now(),str(datetime.timedelta(seconds=time.time() - init_time)),f'Exception received within start_consumming')
     traceback.print_exc()
     cleanClose()
 
