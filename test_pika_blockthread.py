@@ -16,6 +16,20 @@ logger = logging.getLogger(__name__)
 
 logging.basicConfig(level=logging.INFO, format=log_format)
 
+# %% PARAMETERS
+RabbitMQ_host = 'localhost'
+RabbitMQ_port = 5672
+RabbitMQ_queue = 'test_ctrlC'
+RabbitMQ_cred_un = 'guest'
+RabbitMQ_cred_pd = 'guest'
+
+# %% init variables for batch process
+list_Boby_Tag = Queue()
+threads = list()
+event = None
+PauseConsume = False
+init_time = time.time()
+
 # %% Function Message Acknowledgement
 def ack_message(ch, delivery_tag):
     """Note that `ch` must be the same pika channel instance via which
@@ -70,14 +84,15 @@ def block_process():
     return
 
 # %% Function Process message by message and call 
-def process_message(ch, method, properties, body):
+def process_message(ch, method, _properties, body):
     # list global variables to be changed
     global list_Boby_Tag
     global event
     global threads
 
     # do nothing if this flag is on, as the program is about to close
-    if PauseConsume == 1:
+    if PauseConsume:
+        logger.info(f'DEBUG process_message : PauseConsume is True')
         return
     
     # cancel the timer if exist as we are going to process a block or restart a new timer
@@ -106,20 +121,6 @@ def process_message(ch, method, properties, body):
         # also add this thread to the list of threads
         threads.append(event)
 
-# %% PARAMETERS
-RabbitMQ_host = 'localhost'
-RabbitMQ_port = 5672
-RabbitMQ_queue = 'test_ctrlC'
-RabbitMQ_cred_un = 'guest'
-RabbitMQ_cred_pd = 'guest'
-
-# %% init variables for batch process
-list_Boby_Tag = Queue()
-threads = list()
-event = None
-PauseConsume = 0
-init_time = time.time()
-
 # %% connect to RabbitMQ via Pika
 cred = pika.credentials.PlainCredentials(RabbitMQ_cred_un,RabbitMQ_cred_pd)
 connection = pika.BlockingConnection(pika.ConnectionParameters(host=RabbitMQ_host, port=RabbitMQ_port, credentials=cred))
@@ -136,8 +137,9 @@ channel.basic_consume(queue=RabbitMQ_queue,
 # %% empty queue and generate test data
 channel.queue_purge(queue=RabbitMQ_queue)
 # wait few second so the purge can be check in the RabbitMQ ui
-logger.info(f'DEBUG main : queue {RabbitMQ_queue} purged')
-connection.sleep(10)
+logger.info(f'DEBUG main : queue {RabbitMQ_queue} purged, sleeping 5 seconds')
+connection.sleep(5)
+logger.info(f'DEBUG main : done sleeping 5 seconds')
 # generate 10 test messages
 for msgId in range(10):
     channel.basic_publish(exchange='',
@@ -150,14 +152,14 @@ logger.info(f'DEBUG main : test messages created in {RabbitMQ_queue}')
 
 # %% Function clean stop of pika connection in case of interruption or exception
 def cleanClose():
+    channel.stop_consuming()
     # tell the on_message_callback to do nothing 
-    PauseConsume = 1
+    PauseConsume = True
     # Wait for all threads to complete
     for thread in threads:
         thread.join()
     # stop pika connection after a short pause
     connection.sleep(3)
-    channel.stop_consuming()
     connection.close()
     return
 
@@ -176,8 +178,9 @@ print(' [*] Waiting for messages. To exit press CTRL+C')
 try:
     channel.start_consuming()
 except Exception:
-    logger.error(datetime.datetime.now(),str(datetime.timedelta(seconds=time.time() - init_time)),f'Exception received within start_consumming')
-    traceback.print_exc()
+    now_str = str(datetime.datetime.now())
+    delta_str = str(datetime.timedelta(seconds=time.time() - init_time))
+    logger.error('Exception received within start_consumming at %s, delta %s', now_str, delta_str, exc_info=True)
     cleanClose()
 
 # %% ISSUES
