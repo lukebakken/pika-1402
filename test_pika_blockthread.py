@@ -16,7 +16,7 @@ log_format = ('%(levelname) -10s %(asctime)s %(name) -30s %(funcName) -35s %(lin
 log_formatter = logging.Formatter(log_format)
 
 logger = logging.getLogger()
-logger.setLevel(logging.DEBUG)
+logger.setLevel(logging.INFO)
 
 file_handler = logging.handlers.WatchedFileHandler(filename='pika-1402.log')
 file_handler.setFormatter(log_formatter)
@@ -45,7 +45,7 @@ def ack_message(ch, delivery_tag):
     """Note that `ch` must be the same pika channel instance via which
     the message being ACKed was retrieved (AMQP protocol constraint).
     """
-    logger.info(f'DEBUG ack_message : begining of ack_message function')
+    logger.info('DEBUG ack_message : begining of ack_message function, tag: %s', delivery_tag)
 
     if ch.is_open:
         ch.basic_ack(delivery_tag)
@@ -80,7 +80,7 @@ def block_process():
     # that also empty the queue
 
     # do something that take time with the block of nessage in body_list
-    time.sleep(10)
+    time.sleep(5)
 
     for body in body_list:
         body_str = body.decode()
@@ -157,7 +157,7 @@ logger.info(f'DEBUG main : done sleeping 5 seconds')
 for msgId in range(10):
     channel.basic_publish(exchange='',
                         routing_key=RabbitMQ_queue,
-                        body=f'message{msgId}',
+                        body=f'message-{msgId}',
                         properties=pika.BasicProperties(
                             delivery_mode = pika.spec.PERSISTENT_DELIVERY_MODE
                         ))
@@ -165,7 +165,9 @@ logger.info(f'DEBUG main : test messages created in {RabbitMQ_queue}')
 
 # %% Function clean stop of pika connection in case of interruption or exception
 def cleanClose():
-    logger.info(f'DEBUG : cleanClose start')
+    logger.info(f'DEBUG : cleanClose start. Sleeping 10 seconds before cancelling...')
+    connection.sleep(10)
+    logger.info(f'DEBUG : cleanClose sleep is complete')
     # tell the on_message_callback to do nothing 
     PauseConsume = True
     channel.stop_consuming()
