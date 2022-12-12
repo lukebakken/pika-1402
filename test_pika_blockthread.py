@@ -122,7 +122,7 @@ def pika_runner():
     ):
         if exiting:
             logger.info(f"DEBUG : stopping consuming")
-            channel.stop_consuming()
+            channel.cancel()
             logger.info(f"DEBUG : joining work threads")
             for thread in work_threads:
                 thread.join()
@@ -150,8 +150,6 @@ def exit_handler(signum, _):
     now_str = str(datetime.datetime.now())
     delta_str = str(datetime.timedelta(seconds=time.time() - init_time))
     logger.info("Exit signal received (%d) at %s, delta %s", signum, now_str, delta_str)
-    for thread in work_threads:
-        thread.join()
     pika_thread.join()
     exit(0)
 
