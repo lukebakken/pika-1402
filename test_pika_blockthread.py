@@ -121,10 +121,14 @@ def pika_runner():
         queue=RabbitMQ_queue, inactivity_timeout=1
     ):
         if exiting:
-            logger.info(f"DEBUG : closing connections and channels")
+            logger.info(f"DEBUG : stopping consuming")
+            channel.stop_consuming()
+            logger.info(f"DEBUG : joining work threads")
             for thread in work_threads:
                 thread.join()
-            channel.stop_consuming()
+            logger.info(f"DEBUG : all work threads done, sleeping 5 seconds to let acks be delivered")
+            connection.sleep(5)
+            logger.info(f"DEBUG : closing connections and channels")
             channel.close()
             connection.close()
         else:
