@@ -128,7 +128,8 @@ def pika_runner():
             channel.close()
             connection.close()
         else:
-            process_message(channel, method_frame.delivery_tag, body)
+            if method_frame is not None:
+                process_message(channel, method_frame.delivery_tag, body)
 
 
 pika_thread = threading.Thread(target=pika_runner)
