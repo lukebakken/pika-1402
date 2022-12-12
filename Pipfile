@@ -6,5 +6,9 @@ name = "pypi"
 [packages]
 pika = "*"
 
+[dev-packages]
+pika = "*"
+black = "*"
+
 [scripts]
 main = 'python test_pika_blockthread.py'

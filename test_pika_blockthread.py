@@ -79,10 +79,8 @@ def do_work(channel, delivery_tag, body):
     logger.info(f"DEBUG block_process : end of block_process function")
 
 
-# %% Function Process message by message and call
-def process_message(ch, method, _, body):
+def process_message(ch, delivery_tag, body):
     global work_threads
-    delivery_tag = method.delivery_tag
     t = threading.Thread(target=do_work, args=(ch, delivery_tag, body))
     t.start()
     work_threads.append(t)
@@ -130,7 +128,7 @@ def pika_runner():
             channel.close()
             connection.close()
         else:
-            do_work(channel, method_frame.delivery_tag, body)
+            process_message(channel, method_frame.delivery_tag, body)
 
 
 pika_thread = threading.Thread(target=pika_runner)
